@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "horizontalAxisWindTurbinesADM.C": "cpp",
+        "horizontalAxisWindTurbinesALM.C": "cpp",
+        "simplifiedWindTurbinesADM.C": "cpp",
+        "windPlantSolver.C": "cpp",
+        "pisoFoamTurbine.C": "cpp",
+        "simplewindPlantSolver.C": "cpp",
+        "interpolate2D.C": "cpp"
+    }
+}

@@ -1,0 +1,6 @@
+horizontalAxisWindTurbinesALM/horizontalAxisWindTurbinesALM.C
+horizontalAxisWindTurbinesALMAdvanced/horizontalAxisWindTurbinesALMAdvanced.C
+horizontalAxisWindTurbinesADM/horizontalAxisWindTurbinesADM.C
+simplifiedWindTurbinesADM/simplifiedWindTurbinesADM.C
+
+LIB = $(SOWFA_DIR)/lib/$(WM_OPTIONS)/libSOWFATurbineModelsStandard

@@ -1,0 +1,141 @@
+#!/bin/bash
+
+# User Input.
+echo "   -Loading userinput..."
+chmod u+rwx ./userinput.sh
+source ./userinput.sh
+
+# Specilized file Input.
+precursor=0 					# Boolean for wehter or not the postprocessing will perform the actions to get 
+								#   driving data for the turbine simulation
+reconstruct=1					# Boolean for wehter or not to reconstruct decomposed solutions
+delete=1						# Boolean for wheter to delete all processor files
+createVTK=1						# Boolean for wehter or not the postprocessing will perform the actions to create 	
+								#    VTK and zip
+westXdistance=${inflowDirsLoc[0]}   # the y location of the north boundary
+northYdistance=${inflowDirsLoc[1]}   # the y location of the north boundary                                 
+
+
+# Seperate inflow if two are given
+
+
+
+
+# Postprocess generate precursor data
+
+
+if [ $precursor -eq 1 ]; then
+    # Make folder for drivingData
+    echo "   -Making drivingData..."
+    rm -rf drivingData; mkdir drivingData
+    
+    
+    for inflowDir in "${inflowDirs[@]}"; do 
+  	
+      echo "       -For inflow $inflowDir..."
+  	  cd ./postProcessing
+  	  # Copy files from SOWFA to here and give them adminrights
+  	  cp -r ~/SOWFA/tools/boundaryDataConversion/* .
+  	  chmod u+rwx makeBoundaryDataFiles.$inflowDir.sh
+  	  chmod u+rwx makeBoundaryDataFiles/data.py
+  	  chmod u+rwx makeBoundaryDataFiles/points.py
+  	
+  	  cp -r ~/SOWFA/tools/sourceDataConversion/* .
+  	  chmod u+rwx sourceData.py
+  	  chmod u+rwx sourceHistoryRead.py
+  
+  	  # Modify script to add bashrc in front of them 
+  	  sed  -i '1i #! /usr/bin/env python' sourceHistoryRead.py
+  	  sed  -i '1i #! /usr/bin/env python' makeBoundaryDataFiles/data.py
+  	  sed  -i '1i #! /usr/bin/env python' makeBoundaryDataFiles/points.py
+   
+      # Modify script to be able to create west boudndary at location
+	    Ymindistacewest=$(awk -v xdistance="$westXdistance" 'BEGIN { print xdistance - 0.1 }')
+	    Ymaxdistancewest=$(awk -v xdistance="$westXdistance" 'BEGIN { print xdistance + 0.1 }')
+      sed  -i "44s/-0.1/$Ymindistacewest/" ./makeBoundaryDataFiles.$inflowDir.sh
+	    sed  -i "44s/0.1/$Ymaxdistancewest/" ./makeBoundaryDataFiles.$inflowDir.sh
+    
+      # Modify script to be able to create north boudndary at location
+   	  Ymindistacenorth=$(awk -v ydistance="$northYdistance" 'BEGIN { print ydistance - 0.1 }')
+	    Ymaxdistancenorth=$(awk -v ydistance="$northYdistance" 'BEGIN { print ydistance + 0.1 }')
+      sed  -i "46s/7999.0/$Ymindistacenorth/" ./makeBoundaryDataFiles.$inflowDir.sh
+	    sed  -i "46s/8000.1/$Ymaxdistancenorth/" ./makeBoundaryDataFiles.$inflowDir.sh
+    
+  	  # Run the required scripts
+  	  ./makeBoundaryDataFiles.$inflowDir.sh > log.makeBound 2>&1
+       
+  	  # Add first timestep to fill gapp between 20000 and 20000.xx timestep
+  	  arr=(./boundaryData/$inflowDir/*)
+  	  chmod u+rwx boundaryData/$inflowDir
+  	  cp -r ${arr[0]} ./boundaryData/$inflowDir/$startTime
+       
+      # go back
+      cd ../
+       
+    done
+      
+    # make source  
+    cd ./postProcessing
+  	./sourceHistoryRead.py > log.sourceHistoryRead 2>&1
+  	
+  	# go back and move driving data
+  	mv boundaryData/ sources ../drivingData
+
+    
+    cd ../ 
+    echo "   -Zip postProcessing folder..."
+    #zip postpocessing folder 
+  	foldername=${PWD##*/}
+  	foldername+="_drivingdata"
+   	if [[ -f ./$foldername.zip ]]; then
+  		rm -rf $foldername.zip
+  	fi
+  	zip -r $foldername.zip postProcessing > log.zipdrivingdata 2>&1
+   
+fi
+
+
+if [ $reconstruct -eq 1 ]; then
+	if [[ -d ./processor0 ]]; then
+		echo "   -Reconstructing decomposed solution..."
+		if [ $precursor -eq 1 ]; then 
+			if [[ -d $startTime.initialconditions ]]; then
+      	rm -rf $startTime.initialconditions  
+      fi
+      rm -rf $startTime
+			reconstructPar -time $startTime -fields '(k kappat nuSgs p_rgh qwall Rwall T U)' > log.reconstructPar.initialconditions 2>&1
+			mv $startTime $startTime.initialconditions
+		fi
+		reconstructPar > log.reconstructPar 2>&1
+	else
+		echo "   -Reconstructing impossible, no decomposed directories..."
+	fi
+fi
+
+if [ $delete -eq 1 ]; then	
+	if [[ -d ./processor0 ]]; then
+		echo "   -Deleting decomposed directories..."
+		rm -r processor*
+	else
+		echo "   -No decomposed directories..."
+	fi  
+fi   
+   
+
+if [ $createVTK -eq 1 ]; then	   
+	echo "   -Creating VTK to load into paraview..."
+	foamToVTK > log.foamToVTK 2>&1
+
+	foldername=${PWD##*/}
+	foldername+="_vtk"
+	cp -r VTK/ $foldername
+	cp -r turbineOutput/ $foldername
+
+	echo "   -Zip VTK folder to reduce download amount..."
+	if [[ -f ./$foldername.zip ]]; then
+		rm -rf $foldername.zip
+	fi
+	zip -r $foldername.zip $foldername/ > log.zipVTK 2>&1
+	rm -rf $foldername/
+fi
+
